@@ -1,9 +1,7 @@
 package com.albara.restaurant.services.impl;
 
-import com.albara.restaurant.exceptions.BaseException;
 import com.albara.restaurant.exceptions.StorageException;
 import com.albara.restaurant.services.StorageService;
-import com.fasterxml.jackson.databind.introspect.TypeResolutionContext;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +30,7 @@ public class FileSystemStorageService implements StorageService {
     private Path rootLocation;
 
     @PostConstruct
-    public void init(){
+    public void init() {
         rootLocation = Paths.get(storageLocation);
         try {
             Files.createDirectories(rootLocation);
@@ -41,53 +39,52 @@ public class FileSystemStorageService implements StorageService {
         }
     }
 
-
     @Override
     public String store(MultipartFile file, String filename) {
-        try{
+        try {
             if (file.isEmpty()) {
-                throw new StorageException("Failed to store empty file " + filename);
+                throw new StorageException("Cannot save an empty file");
             }
 
-            String extention = StringUtils.getFilenameExtension(file.getOriginalFilename());
-            String finalFileName = filename + "." + extention;
+            String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
+            String finalFileName = filename + "." + extension;
+
             Path destinationFile = rootLocation
                     .resolve(Paths.get(finalFileName))
                     .normalize()
                     .toAbsolutePath();
 
             if (!destinationFile.getParent().equals(rootLocation.toAbsolutePath())) {
-                throw new StorageException("Cannot store file outside current directory");
+                throw new StorageException("Cannot store file outside specified directory");
             }
 
             try (InputStream inputStream = file.getInputStream()) {
                 Files.copy(inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING);
             }
-            return filename;
+
+            return finalFileName;
+
+        } catch(IOException e) {
+            throw new StorageException("Failed to store file", e);
         }
-        catch (IOException e) {
-            throw new StorageException("Failed to store file " + filename, e);
-        }
+
     }
 
     @Override
-    public Optional<Resource> loadAsResource(String fileName) {
-
+    public Optional<Resource> loadAsResource(String filename) {
         try {
-            Path file = rootLocation.resolve(fileName);
+            Path file = rootLocation.resolve(filename);
 
-            UrlResource resource = new UrlResource(file.toUri());
+            Resource resource = new UrlResource(file.toUri());
 
-            if (resource.exists() || resource.isReadable()){
+            if (resource.exists() || resource.isReadable()) {
                 return Optional.of(resource);
             } else {
                 return Optional.empty();
             }
-        } catch (MalformedURLException e) {
-            log.warn("Could not read file: %s".formatted(fileName), e);
+        } catch(MalformedURLException e) {
+            log.warn("Could not read file: %s".formatted(filename), e);
             return Optional.empty();
         }
-
-
     }
 }
